@@ -1,0 +1,70 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prod-landing-page-tpfico
+  namespace: prod
+spec:
+  selector:
+    matchLabels:
+      app: prod-landing-page-tpfico
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: prod-landing-page-tpfico
+    spec:
+      containers:
+        - name: prod-landing-page-tpfico
+          image: gcr.io/rio-system-migration/hyperlead-landing-pages:latest
+          resources:
+            requests:
+              cpu: 2000m
+              memory: 512Mi          
+      volumes:
+        - name: prod-landing-page-tpfico
+          configMap:
+            name: prod-landing-page-tpfico
+
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: prod-landing-page-tpfico
+  namespace: prod
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: prod-landing-page-tpfico
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 90
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prod-landing-page-tpfico
+  namespace: prod
+spec:
+  selector:
+    app: prod-landing-page-tpfico
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+
+

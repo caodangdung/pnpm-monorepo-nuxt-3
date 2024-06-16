@@ -1,0 +1,41 @@
+options:
+  docker: true
+  size: 2x
+
+definitions:
+  services:
+    docker:
+      memory: 4096
+
+pipelines:
+  branches:
+    tpfico:
+      - step:
+          name: Build and Push Docker Image
+          image: google/cloud-sdk:411.0.0
+          caches:
+            - docker
+          script:
+            - export GCLOUD_PROJECT_ID=rio-system-migration
+            - echo $GCLOUD_API_KEYFILE > ~/.gcloud-api-key.json
+            - gcloud auth activate-service-account --key-file ~/.gcloud-api-key.json
+            - gcloud config set project $GCLOUD_PROJECT_ID
+            - gcloud auth configure-docker --quiet
+            - docker build --build-arg APP_NAME=tpfico -t gcr.io/$GCLOUD_PROJECT_ID/${BITBUCKET_REPO_SLUG}:${BITBUCKET_COMMIT} .
+            - docker tag gcr.io/$GCLOUD_PROJECT_ID/${BITBUCKET_REPO_SLUG}:${BITBUCKET_COMMIT} gcr.io/$GCLOUD_PROJECT_ID/${BITBUCKET_REPO_SLUG}:${BITBUCKET_COMMIT}
+            - docker push gcr.io/$GCLOUD_PROJECT_ID/${BITBUCKET_REPO_SLUG}:${BITBUCKET_COMMIT}
+          services:
+            - docker
+      - step:
+          name: Deploy to Production
+          deployment: Production
+          image: google/cloud-sdk:411.0.0
+          script:
+            - export GCLOUD_PROJECT_ID=rio-system-migration
+            - echo $GCLOUD_API_KEYFILE > ~/.gcloud-api-key.json
+            - gcloud auth activate-service-account --key-file ~/.gcloud-api-key.json
+            - gcloud config set project $GCLOUD_PROJECT_ID
+            - gcloud auth configure-docker --quiet
+            - gcloud container clusters get-credentials riofintech-private --zone asia-southeast1-a --project $GCLOUD_PROJECT_ID
+            - cd k8s && sed -i "s/latest/"${BITBUCKET_COMMIT}"/g" ./prod-landing-page-tpfico.yml
+            - kubectl apply -f ./prod-landing-page-tpfico.yml         
